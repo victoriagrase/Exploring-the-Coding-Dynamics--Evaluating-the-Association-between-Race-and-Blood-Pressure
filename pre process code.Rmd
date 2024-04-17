@@ -1,0 +1,497 @@
+---
+title: "Pre processed Thesis Code"
+output:
+  pdf_document: default
+  html_document: default
+date: "2023-10-24"
+---
+
+```{r setup, include=FALSE,cache=TRUE}
+knitr::opts_chunk$set(echo = FALSE, tidy.opts = list(width.cutoff = 40),
+tidy = TRUE)
+pacman::p_load(tidyverse, plyr, dplyr, pacman,
+tableone, ggcorrplot, GGally, knitr,
+ggpubr, magrittr, broom, formatR, readxl,
+tinytex, Metrics, lmtest, caret, glmtoolbox,
+predtools, pROC, ggsurvfit, survival,tableone,
+lubridate, gtsummary, tidycmprsk, survminer,gtools,
+condSURV,naniar,kableExtra,tinytex)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+```{r,cache=TRUE}
+library(nhanesA)
+#nhanesCodebook(nh, colname, dxa = FALSE)
+# first, load in all the lead tables
+# then merge all into one dataset
+# repeat for all the other vars
+lead_1999 <- nhanes("LAB06")
+lead_2001 <- nhanes("L06_2_B")
+lead_2003 <- nhanes("L06BMT_C")
+lead_2005 <- nhanes("PbCd_D")
+lead_2007 <- nhanes("PbCd_E")
+lead_2009 <- nhanes("PbCd_F")
+lead_2011 <- nhanes("PbCd_G")
+lead_2013 <- nhanes("PbCd_H")
+lead_2015 <- nhanes("PbCd_I")
+lead_2017 <- nhanes("PbCd_J")
+lead_1999$YEAR <- 1999
+lead_2001$YEAR <- 2001
+lead_2003$YEAR <- 2003
+lead_2005$YEAR <- 2005
+lead_2007$YEAR <- 2007
+lead_2009$YEAR <- 2009
+lead_2011$YEAR <- 2011
+lead_2013$YEAR <- 2013
+lead_2015$YEAR <- 2015
+lead_2017$YEAR <- 2017
+lead_2001$LBXBPB <- lead_2001$LB2BPB
+lead_2001<-lead_2001 %>%
+  select(-c(LB2BPB))
+lead_df <- list(lead_1999, lead_2001, lead_2003,
+lead_2005, lead_2007, lead_2009, lead_2011,
+lead_2013, lead_2015, lead_2017)
+lead_df_1 <- join_all(lead_df, type = "full")
+lead_df_final<-lead_df_1 %>%
+  select(SEQN, YEAR, LBXBPB)
+#print(lead_df_final)
+```
+The data displays the Lead by blood level (ug/dL) from the years 1999 to 2017. The dataset has 3 columns which include the sequence number (PATIENT ID), Year (year of measurement), and LBXBPB the measurement of lead by blood level. There are 76,213 rows in the original combined set. There are missing values observed in the measurements of LBXBPB
+```{r,cache=TRUE}
+# k. so. they have hypertension if
+# HTN=yes, if medication = yes, and if
+# systolic BP >= 130 mmHg or diastolic
+# BP >=80 mmHg going to need to make a
+# new column of final_HTN at the end of
+# the full dataframe after selecting
+# htn, medication, and both blood
+# pressures
+htn_1999 <- nhanes("BPQ")
+htn_2001 <- nhanes("BPQ_B")
+htn_2003 <- nhanes("BPQ_C")
+htn_2005 <- nhanes("BPQ_D")
+htn_2007 <- nhanes("BPQ_E")
+htn_2009 <- nhanes("BPQ_F")
+htn_2011 <- nhanes("BPQ_G")
+htn_2013 <- nhanes("BPQ_H")
+htn_2015 <- nhanes("BPQ_I")
+htn_2017 <- nhanes("BPQ_J")
+htn_1999$YEAR <- 1999
+htn_2001$YEAR <- 2001
+htn_2003$YEAR <- 2003
+htn_2005$YEAR <- 2005
+htn_2007$YEAR <- 2007
+htn_2009$YEAR <- 2009
+htn_2011$YEAR <- 2011
+htn_2013$YEAR <- 2013
+htn_2015$YEAR <- 2015
+htn_2017$YEAR <- 2017
+
+htn_df <- list(htn_1999, htn_2001, htn_2003,
+htn_2005, htn_2007, htn_2009, htn_2011,
+htn_2013, htn_2015, htn_2017)
+
+
+htn_df_1 <- join_all(htn_df, type = "full")
+htn_df_final <- htn_df_1 %>%
+select(SEQN, YEAR, BPQ020, BPQ040A)
+#print(htn_df_final)
+
+# repeat process: load in all the BP
+# tables then merge all into one
+# dataset
+bp_1999 <- nhanes("BPX")
+bp_2001 <- nhanes("BPX_B")
+bp_2003 <- nhanes("BPX_C")
+bp_2005 <- nhanes("BPX_D")
+bp_2007 <- nhanes("BPX_E")
+bp_2009 <- nhanes("BPX_F")
+bp_2011 <- nhanes("BPX_G")
+bp_2013 <- nhanes("BPX_H")
+bp_2015 <- nhanes("BPX_I")
+bp_2017 <- nhanes("BPX_J")
+
+bp_1999$YEAR <- 1999
+bp_2001$YEAR <- 2001
+bp_2003$YEAR <- 2003
+bp_2005$YEAR <- 2005
+bp_2007$YEAR <- 2007
+bp_2009$YEAR <- 2009
+bp_2011$YEAR <- 2011
+bp_2013$YEAR <- 2013
+bp_2015$YEAR <- 2015
+bp_2017$YEAR <- 2017
+
+bp_df <- list(bp_1999, bp_2001, bp_2003,
+bp_2005, bp_2007, bp_2009, bp_2011, bp_2013,
+bp_2015, bp_2017)
+
+bp_df_1<-join_all(bp_df, type="full")
+str(bp_df_1)
+
+bp_df_final <- bp_df_1 %>%
+  select(SEQN, YEAR, BPXSY1, BPXSY2, BPXSY3,BPXSY4, BPXDI1, BPXDI2, BPXDI3, BPXDI4)
+#print(bp_df_final)
+```
+The hypertension data displays two binary measurements  from the years 1999 to 2017. The dataset has 4 columns which include the sequence number (PATIENT ID), Year (year of measurement), BPQ020 a binary measurement answering if patient has "ever been told by a doctor or other health professional that {you/s/he} had hypertension, also called high blood pressure?", and BPQ040 another binary measurement answering if patient "Because of {your/SP's} (high blood pressure/hypertension), {have you/has s/he} ever been told to . . . take prescribed medicine?". The indicators for both binary variables is as follows (1=Yes, 2=No). There are 63,592 rows in the  combined set. There are multiple missing values observed in the measurements of BPQ040A we might want to  consider that they may have never been asked.
+
+
+The blood pressure data displays 8 numerical measurements from the years 1999 to 2017 for systolic and diastolic blood pressure points at different time points within the year. The dataset has 10 columns which include the sequence number (PATIENT ID), Year (year of measurement), BPXSY1,BPXSY2,BPXSY3, BPXSI4 which are readings for systolic blood pressure. The numbers at the end of the variables indicate the reading number and usually the fourth is only necessary for extreme cases.It's measurement units are mm Hg. BPXDI1,BPXDIY2,BPXDI3, BPXDI4  which are readings for diastolic blood pressure. The numbers at the end of the variables indicate the reading number and usually the fourth is only necessary for extreme cases.It's measurement units are mm Hg. There are 96,766 rows in the  combined set. There are multiple missing values observed in the measurements in all measurements for  systolic and diastolic and bp. 
+
+```{r,cache=TRUE}
+# repeat process: load in all the demo
+# tables then merge all into one
+# dataset
+demo_1999 <- nhanes("DEMO")
+demo_2001 <- nhanes("DEMO_B")
+demo_2003 <- nhanes("DEMO_C")
+demo_2005 <- nhanes("DEMO_D")
+demo_2007 <- nhanes("DEMO_E")
+demo_2009 <- nhanes("DEMO_F")
+demo_2011 <- nhanes("DEMO_G")
+demo_2013 <- nhanes("DEMO_H")
+demo_2015 <- nhanes("DEMO_I")
+demo_2017 <- nhanes("DEMO_J")
+
+demo_1999$YEAR <- 1999
+demo_2001$YEAR <- 2001
+demo_2003$YEAR <- 2003
+demo_2005$YEAR <- 2005
+demo_2007$YEAR <- 2007
+demo_2009$YEAR <- 2009
+demo_2011$YEAR <- 2011
+demo_2013$YEAR <- 2013
+demo_2015$YEAR <- 2015
+demo_2017$YEAR <- 2017
+
+demo_df<- list(demo_1999, demo_2001, demo_2003,
+demo_2005, demo_2007, demo_2009, demo_2011,
+demo_2013, demo_2015, demo_2017)
+demo_df_1<-join_all(demo_df, type ="full")
+demo_df_final<- demo_df_1 %>%
+  select(SEQN, YEAR, DMDHRAGE, RIDRETH1,
+INDFMPIR, DMDEDUC2, RIAGENDR)
+
+#print(demo_df_final)
+
+```
+The blood pressure data displays 5 numerical measurements from the years 1999 to 2017 for patient demographics including the patient age, patient ethnicity/race, ratio of income for patient, education level and gender. Refer to the codebook in excel sheet to see the measurements of each variable. The demographics table has 101,316 rows and 7 columns. There seems to be missingness for measurements in income ratio and education level.  
+
+
+The data displays two binary measurements  from the years 1999 to 2017. The datasethas 4 columns which include the sequence nuber (PATIENT ID), Year (year of measurement), BPQ020 a binary measurement answering if patient has "ever been told by a doctor or other health professional that {you/s/he} had hypertension, also called high blood pressure?", and BPQ040 another binary measurement answering if patient "Because of {your/SP's} (high blood pressure/hypertension), {have you/has s/he} ever been told to . . . take prescribed medicine?". The indicators for both binary variables is as follows (1=Yes, 2=No). There are 63,592 rows in the  combined set. There are multiple missing values observed in the measurements of BPQ040A we might want to  consider that they may have never been asked.
+
+```{r,cache=TRUE}
+# repeat process: load in all the BMI
+# tables then merge all into one
+# datasetv
+bmi_1999 <- nhanes("BMX")
+bmi_2001 <- nhanes("BMX_B")
+bmi_2003 <- nhanes("BMX_C")
+bmi_2005 <- nhanes("BMX_D")
+bmi_2007 <- nhanes("BMX_E")
+bmi_2009 <- nhanes("BMX_F")
+bmi_2011 <- nhanes("BMX_G")
+bmi_2013 <- nhanes("BMX_H")
+bmi_2015 <- nhanes("BMX_I")
+bmi_2017 <- nhanes("BMX_J")
+
+bmi_1999$YEAR <- 1999
+bmi_2001$YEAR <- 2001
+bmi_2003$YEAR <- 2003
+bmi_2005$YEAR <- 2005
+bmi_2007$YEAR <- 2007
+bmi_2009$YEAR <- 2009
+bmi_2011$YEAR <- 2011
+bmi_2013$YEAR <- 2013
+bmi_2015$YEAR <- 2015
+bmi_2017$YEAR <- 2017
+
+bmi_df<-list(bmi_1999, bmi_2001, bmi_2003,
+bmi_2005, bmi_2007, bmi_2009, bmi_2011, bmi_2013, bmi_2015, bmi_2017)
+bmi_df_1<-join_all(bmi_df, type ="full")
+bmi_df_final <- bmi_df_1 %>%
+  select(SEQN, YEAR, BMXBMI)
+#print(bmi_df_final)
+```
+
+```{r,cache=TRUE}
+# repeat process: load in all the
+# Alcohol tables then merge all into
+# one dataset
+alc_1999 <- nhanes("ALQ")
+alc_2001 <- nhanes("ALQ_B")
+alc_2003 <- nhanes("ALQ_C")
+alc_2005 <- nhanes("ALQ_D")
+alc_2007 <- nhanes("ALQ_E")
+alc_2009 <- nhanes("ALQ_F")
+alc_2011 <- nhanes("ALQ_G")
+alc_2013 <- nhanes("ALQ_H")
+alc_2015 <- nhanes("ALQ_I")
+alc_2017 <- nhanes("ALQ_J")
+
+alc_1999$YEAR <- 1999
+alc_2001$YEAR <- 2001
+alc_2003$YEAR <- 2003
+alc_2005$YEAR <- 2005
+alc_2007$YEAR <- 2007
+alc_2009$YEAR <- 2009
+alc_2011$YEAR <- 2011
+alc_2013$YEAR <- 2013
+alc_2015$YEAR <- 2015
+alc_2017$YEAR <- 2017
+
+alc_df<-list(alc_1999, alc_2001, alc_2003,
+alc_2005, alc_2007, alc_2009, alc_2011,
+alc_2013, alc_2015, alc_2017)
+alc_df_1<-join_all(alc_df, type="full")
+alc_df_final<- alc_df_1 %>%
+  select(SEQN, YEAR, ALQ120Q)
+#print(alc_df_final)
+
+# repeat process: load in all the
+# Smoking tables then merge all into
+# one dataset
+smok_1999 <- nhanes("SMQ")
+smok_2001 <- nhanes("SMQ_B")
+smok_2003 <- nhanes("SMQ_C")
+smok_2005 <- nhanes("SMQ_D")
+smok_2007 <- nhanes("SMQ_E")
+smok_2009 <- nhanes("SMQ_F")
+smok_2011 <- nhanes("SMQ_G")
+smok_2013 <- nhanes("SMQ_H")
+smok_2015 <- nhanes("SMQ_I")
+smok_2017 <- nhanes("SMQ_J")
+
+smok_1999$YEAR <- 1999
+smok_2001$YEAR <- 2001
+smok_2003$YEAR <- 2003
+smok_2005$YEAR <- 2005
+smok_2007$YEAR <- 2007
+smok_2009$YEAR <- 2009
+smok_2011$YEAR <- 2011
+smok_2013$YEAR <- 2013
+smok_2015$YEAR <- 2015
+smok_2017$YEAR <- 2017
+
+smok_df<-list(smok_1999, smok_2001, smok_2003,
+smok_2005, smok_2007, smok_2009, smok_2011,
+smok_2013, smok_2015, smok_2017)
+smok_df_1 <- join_all(smok_df, type= "full")
+smok_df_final<-smok_df_1 %>%
+  select(SEQN, YEAR, SMQ040, SMQ020)
+#print(smok_df_final)
+```
+
+```{r,cache=TRUE}
+# repeat process: load in all the
+# Insurance tables then merge all into
+# one dataset
+ins_1999 <- nhanes("HIQ")
+ins_2001 <- nhanes("HIQ_B")
+ins_2003 <- nhanes("HIQ_C")
+ins_2005 <- nhanes("HIQ_D")
+ins_2007 <- nhanes("HIQ_E")
+ins_2009 <- nhanes("HIQ_F")
+ins_2011 <- nhanes("HIQ_G")
+ins_2013 <- nhanes("HIQ_H")
+ins_2015 <- nhanes("HIQ_I")
+ins_2017 <- nhanes("HIQ_J")
+
+ins_1999$YEAR <- 1999
+ins_2001$YEAR <- 2001
+ins_2003$YEAR <- 2003
+ins_2005$YEAR <- 2005
+ins_2007$YEAR <- 2007
+ins_2009$YEAR <- 2009
+ins_2011$YEAR <- 2011
+ins_2013$YEAR <- 2013
+ins_2015$YEAR <- 2015
+ins_2017$YEAR <- 2017
+
+ins_1999$HIQ011 <- ins_1999$HID010
+ins_1999 <- ins_1999 %>%
+  select(-c(HID010))
+ins_2001$HIQ011 <- ins_2001$HID010
+ins_2001 <- ins_2001 %>%
+  select(-c(HID010))
+ins_2003$HIQ011 <- ins_2003$HID010
+ins_2003 <- ins_2003 %>%
+  select(-c(HID010))
+ins_df <- list(ins_1999, ins_2001, ins_2003,
+ins_2005, ins_2007, ins_2009, ins_2011,
+ins_2013, ins_2015, ins_2017)
+ins_df_1 <- join_all(ins_df, type = "full")
+ins_df_final <- ins_df_1 %>%
+select(SEQN, YEAR, HIQ011)
+#print(ins_df_final)
+```
+
+```{r, cache=TRUE}
+# join all the datasets togther
+nhanes_list<- list(lead_df_final, htn_df_final,
+bp_df_final, demo_df_final, bmi_df_final,
+alc_df_final, smok_df_final, ins_df_final)
+
+nhanes_df<- join_all(nhanes_list, by = "SEQN", type = "full")
+#print(nhanes_df)
+
+# obtain overages for Systolic and
+# Diastolic BP
+nhanes_df$SYSAVG = with(nhanes_df, ifelse(!is.na(nhanes_df$BPXSY2) |
+!is.na(nhanes_df$BPXSY3) | !is.na(nhanes_df$BPXSY4),
+rowMeans(nhanes_df[, c("BPXSY2", "BPXSY3",
+"BPXSY4")], na.rm = TRUE), nhanes_df$BPXSY1))
+
+nhanes_df$DIAAVG = with(nhanes_df,ifelse(!is.na(nhanes_df$BPXDI2) |
+!is.na(nhanes_df$BPXDI3) | !is.na(nhanes_df$BPXDI4),
+rowMeans(nhanes_df[, c("BPXDI2", "BPXDI3",
+"BPXDI4")], na.rm = TRUE), nhanes_df$BPXDI1))
+head(nhanes_df)
+
+# if BPQ020= 1 OR BPXSAR >= 130 mmHg OR
+# BPXDAR >=80 mmHg, then htn=yes
+nhanes_df$HTN <- ifelse((nhanes_df$BPQ020 ==
+1) | (nhanes_df$SYSAVG >= 130) | (nhanes_df$DIAAVG >=
+80), 1, 0)
+head(nhanes_df)
+str(nhanes_df)
+# clean and merge the smok020 and
+# smok040 variables to mimic original
+# paper
+nhanes_df$smokingstatus = with(nhanes_df,
+ifelse(is.na(nhanes_df$SMQ020), NA, ifelse(nhanes_df$SMQ020 ==
+2, 1, ifelse(nhanes_df$SMQ040 ==
+1 | nhanes_df$SMQ040 == 2, 2, ifelse(nhanes_df$SMQ040 ==
+3 & nhanes_df$SMQ020 == 1, 3, NA)))))
+
+head(nhanes_df)
+str(nhanes_df)
+# drop all rows with variables (see
+# list) that are na
+library(tidyr)
+miss_var_summary_result<-miss_var_summary(nhanes_df)
+kable(miss_var_summary_result, caption = "Missing Value Summary")
+
+
+nhanes_df1 <- nhanes_df %>%
+  drop_na(LBXBPB, SYSAVG, DIAAVG)
+str(nhanes_df1)
+
+miss_var_summary_result1<-miss_var_summary(nhanes_df1)
+kable(miss_var_summary_result1, caption = "Missing Value Summary")
+
+nhanes_df2 <- nhanes_df1 %>%
+  drop_na(DMDEDUC2, INDFMPIR, BMXBMI, ALQ120Q,HIQ011, smokingstatus)
+# SMOKING variable drops a lot of
+# variables. Insurance variable only
+# drops two people (include insurance)
+nhanes_df_final<- subset(nhanes_df2, DMDHRAGE >20)
+str(nhanes_df_final)
+nhanes_df_final <- nhanes_df_final %>%
+  mutate(ALCSTATUS = ifelse(ALQ120Q ==0, "0", "1"))
+str(nhanes_df_final)
+```
+
+```{r, cache=TRUE}
+# factors
+nhanes_df_final$HTN<- factor(nhanes_df_final$HTN)
+nhanes_df_final$DMDEDUC2 <- factor(nhanes_df_final$DMDEDUC2)
+nhanes_df_final$RIAGENDR <- factor(nhanes_df_final$RIAGENDR)
+nhanes_df_final$RIDRETH1 <- factor(nhanes_df_final$RIDRETH1)
+nhanes_df_final$smokingstatus <- factor(nhanes_df_final$smokingstatus)
+
+
+nhanes_df_final<- nhanes_df_final[!nhanes_df_final$HIQ011 =="7", ] #dropping dont know and refused values, due to small sample size of these values (23) 
+nhanes_df_final<- nhanes_df_final[!nhanes_df_final$HIQ011 =="9", ]
+
+
+# rename the variables/columns and
+# factor health insurance coverage
+colnames(nhanes_df_final)[3] = "Blood Lead Level"
+colnames(nhanes_df_final)[4] = "Hypertension Diagnosis"
+colnames(nhanes_df_final)[14] = "Age"
+colnames(nhanes_df_final)[15] = "Race/Ethnicity"
+colnames(nhanes_df_final)[16] = "Ratio of Family Income to Poverty Level"
+colnames(nhanes_df_final)[17] = "Education level"
+colnames(nhanes_df_final)[18] = "Sex"
+colnames(nhanes_df_final)[19] = "BMI"
+colnames(nhanes_df_final)[20] = "Number of Drinks/Year"
+colnames(nhanes_df_final)[23] = "Health Insurance Coverage"
+colnames(nhanes_df_final)[24] = "Average Systolic Blood Pressure"
+colnames(nhanes_df_final)[25] = "Average Diastolic Blood Pressure"
+colnames(nhanes_df_final)[26] = "Hypertension Status"
+colnames(nhanes_df_final)[27] = "Smoking Status"
+colnames(nhanes_df_final)[28] = "Alcohol Usage"
+nhanes_df_final$`Health Insurance Coverage`<- factor(nhanes_df_final$`Health Insurance Coverage`)
+
+head(nhanes_df_final)
+# make Blood Lead Level quartiles
+
+
+set.seed(123) #to ensure same result throughout replication
+nhanes_quantcut<- quantcut(nhanes_df_final$`Blood Lead Level`,q = 4)
+table(nhanes_quantcut)
+nhanes_quantcut_rank <-ifelse(nhanes_quantcut =="[0.05,0.88]", "Q1",
+                               ifelse(nhanes_quantcut == "(0.88,1.4]", "Q2",
+                                      ifelse(nhanes_quantcut =="(1.4,2.23]","Q3", "Q4")))
+table(nhanes_quantcut_rank)
+nhanes_df_final$BloodLeadQuartile<- nhanes_quantcut_rank
+
+# # ok super happy fun analysis time!!
+
+```
+```{r}
+
+og_table3 <- CreateTableOne(data = nhanes_df_final,
+vars = c("Blood Lead Level", "Average Systolic Blood Pressure",
+"Average Diastolic Blood Pressure","Education level", "Age", "Race/Ethnicity",
+"Ratio of Family Income to Poverty Level","BMI", "Alcohol Usage", "Smoking Status",
+"Hypertension Status", "Sex", "Health Insurance Coverage"), strata = "Race/Ethnicity")
+kableone(og_table3)
+
+```
+
+```{r}
+
+# Make demo tables and add BLL quartile
+# stratification
+og_table1 <- CreateTableOne(data = nhanes_df_final,
+vars = c("Blood Lead Level", "Average Systolic Blood Pressure",
+"Average Diastolic Blood Pressure",
+"Education level", "Age", "Race/Ethnicity","Ratio of Family Income to Poverty Level",
+"BMI", "Alcohol Usage", "Smoking Status",
+"Hypertension Status", "Sex", "Health Insurance Coverage"))
+
+
+kableone(og_table1)
+
+
+
+
+
+og_table2 <- CreateTableOne(data = nhanes_df_final,
+vars = c("Blood Lead Level", "Average Systolic Blood Pressure",
+"Average Diastolic Blood Pressure","Education level", "Age", "Race/Ethnicity",
+"Ratio of Family Income to Poverty Level","BMI", "Alcohol Usage", "Smoking Status",
+"Hypertension Status", "Sex", "Health Insurance Coverage"), strata = "BloodLeadQuartile")
+kableone(og_table2)
+
+
+
+#save data
+#save(nhanes_df_final, file = "NHANES_clean.RData")
+# 
+# #Load 
+#load("NHANES_clean.RData")
+```
+
+The table shows various parameters measured in 4 quantiles (Q1, Q2, Q3, Q4) and their corresponding statistics (mean and standard deviation (SD)) for different groups or categories, as well as p-values.
+In summary, these results indicate strong associations between the listed factors (Blood Lead Level, Blood Pressure, Education, Age, Race/Ethnicity, Income, BMI, Alcohol Usage, Smoking Status, Hypertension Status, Sex, and Health Insurance Coverage) and the outcome being studied. The p-values less than 0.001 for all these factors suggest that they are statistically significant in their influence on the outcome.
+
+
+
+
+
+
