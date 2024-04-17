@@ -1,0 +1,834 @@
+---
+title: 'Code for Thesis: Overall'
+output:
+  pdfdocut: default
+  html_docut: default
+date: "2023-11-02"
+---
+Load libraries in which we will use in this analysis 
+```{r}
+library(dplyr)
+library(gtsummary)
+library(tidyverse)
+library(tidyselect)
+library(kableExtra)
+library(naniar)
+library(ggplot2)
+library(tidyr)
+library(broom)
+library(tableone)
+library(stargazer)
+library(magrittr)
+library(GGally)
+library(broom)
+library(corrplot)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,echo=FALSE}
+#Load the pre-processed data 
+load("C:/Users/CAU Student/Documents/VG Thesis/NHANES_clean.RData")
+
+new_df<-nhanes_df_final%>%
+  dplyr::select(`Blood Lead Level`, `Hypertension Diagnosis`, `Hypertension Status`,BPQ040A,BPXSY1,BPXSY2,BPXSY3,BPXSY4,BPXDI1,BPXDI2,BPXDI3,BPXDI4,Age,`Race/Ethnicity`, `Ratio of Family Income to Poverty Level`,`Education level`, Sex,BMI, `Number of Drinks/Year`,SMQ040,SMQ020, `Health Insurance Coverage`,`Average Systolic Blood Pressure`,`Average Diastolic Blood Pressure`, `Smoking Status`, `Alcohol Usage`,BloodLeadQuartile)%>%
+  dplyr::rename(BLL=`Blood Lead Level`, hypertension_diagnosis=`Hypertension Diagnosis`, hypertension_status=`Hypertension Status`,age=Age,race=`Race/Ethnicity`, income=`Ratio of Family Income to Poverty Level`,education=`Education level`, sex=Sex, num_drinks=`Number of Drinks/Year`, HIC=`Health Insurance Coverage`,systolic_bp=`Average Systolic Blood Pressure`, diastolic_bp= `Average Diastolic Blood Pressure`, smoking=`Smoking Status`, alcohol=`Alcohol Usage`)
+
+
+# #average_bll_by_race <- new_df %>%
+#   select(race,BLL)%>%
+#   group_by(race)%>%
+#   summarise(average_bll = mean(BLL, na.rm = TRUE))
+# 
+# # Print the result
+# #print(average_bll_by_race)
+# 
+# # Calculate average BLL by race using aggregate
+# average_bll_by_race <- aggregate(BLL ~ race, data = new_df, FUN = mean, na.rm = TRUE)
+
+# Print the result
+#print(average_bll_by_race)
+
+
+```
+### Plots for 
+```{r}
+# Create the plots
+
+new_df$educ_recode <- ifelse(new_df$education == 1, "> 9th grade", 
+                              ifelse(new_df$education == 2, "HS & no diploma", 
+                              ifelse(new_df$education == 3, "HS graduate/GED", 
+                              ifelse(new_df$education == 4, "Some college or AA degree", 
+                              ifelse(new_df$education == 5, "college graduate or higher",
+                              ifelse(new_df$education == 7, "Don't know",
+                              ifelse(new_df$education == 9, "Refused",NA)))))))
+
+new_df$educ_recode <- factor(new_df$educ_recode, 
+                              levels = c("> 9th grade", "HS & no diploma", 
+                                         "HS graduate/GED", "Some college or AA degree", 
+                                         "college graduate or higher", "Don't know", 
+                                         "Refused"))
+
+
+# sys_educ<-ggplot(new_df, aes(x = educ_recode, y = systolic_bp, fill = educ_recode)) +
+#   geom_boxplot() +
+#   labs(title = "Systolic Blood Pressure by Education Category",
+#        x = "Education",
+#        y = "Systolic Blood Pressure (mmHg)",
+#        fill = "Education") +
+#   theme_minimal()+
+#   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+# sys_educ
+
+
+
+sys_educ <- ggplot(new_df, aes(x = educ_recode, y = systolic_bp, fill = educ_recode)) +
+  geom_boxplot() +
+  labs(title = "Systolic Blood Pressure by Education Category",
+       x = NULL,  # Removing x-axis label
+       y = "Systolic Blood Pressure (mmHg)",
+       fill = "Education") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank())  # Removing x-axis labels
+
+sys_educ
+
+new_df$race_recode<- ifelse(new_df$race == 1, "Mexican American", 
+                              ifelse(new_df$race == 2, "Other Hispanic", 
+                              ifelse(new_df$race == 3, "NH White", 
+                              ifelse(new_df$race == 4, "NH Black", 
+                              ifelse(new_df$race == 5, "NH Multiracial", NA)))))
+
+# Create boxplot with recoded race variable
+sys_race <- ggplot(new_df, aes(x = race_recode, y = systolic_bp, fill = race_recode)) +
+  geom_boxplot() +
+  labs(title = "Systolic Blood Pressure by Race/Ethnicity",
+       x = "Race/Ethnicity",
+       y = "Systolic Blood Pressure (mmHg)",
+       fill = "Race/Ethnicity") +
+  theme_minimal()
+
+sys_race
+
+# Calculate standard errors
+se_bll<- aggregate(BLL ~ race_recode, data = new_df, FUN = function(x) sd(x)/sqrt(length(x)))
+
+bll_race <- ggplot(new_df, aes(x = race_recode, y = BLL, fill = race_recode)) +
+  geom_bar(stat = "summary", fun = "mean", position = "dodge") +
+  geom_errorbar(data = se_bll, aes(ymin = BLL - BLL, ymax = BLL + BLL, group = race_recode),
+                position = position_dodge(width = 0.9), width = 0.25) +
+  labs(title = "Average Blood Lead Level by Race Category",
+       x = "Race/Ethnicity",
+       y = "Average BLL",
+       fill = "Race") +
+  theme_minimal()
+
+bll_race
+
+
+# Create scatter plot
+scatter_plot<- ggplot(new_df, aes(x = BLL, y = systolic_bp, color = race_recode)) +
+  geom_point() +
+  labs(title = "Scatter Plot of Blood Lead Level and Systolic Blood Pressure by Race",
+       x = "Blood Lead Level (BLL)",
+       y = "Systolic Blood Pressure (mmHg)",
+       color = "Race") +
+  theme_minimal()
+
+scatter_plot
+
+# Calculate average BLL and systolic blood pressure for each race
+avg_data<- aggregate(systolic_bp ~ race+BLL, data = new_df, FUN = mean)
+
+# Create line plot
+ line_plot<- ggplot(avg_data, aes(x = BLL, y = systolic_bp, color = race)) +
+  geom_line(linewidth = 1.5) +  # Add lines
+  labs(title = "Average Systolic Blood Pressure by Blood Lead Level and Race",
+       x = "Blood Lead Level (BLL)",
+       y = "Systolic Blood Pressure (mmHg)",
+      color = "Race") +
+  theme_minimal()
+#
+# line_plot
+
+
+ plt1<-ggpairs(new_df%>% select(BLL,systolic_bp,income,BMI)%>%na.omit(),
+lower = list(continuous = wrap("smooth", alpha = 0.7, size=0.5)))+
+ theme_bw()
+ plt1
+
+```
+
+```{r}
+#model 1 from paper definition
+model1_systolic_paper<- lm(systolic_bp~BLL+race+sex, data = new_df)
+
+#model2 from paper definition
+model2_systolic_paper<- lm(systolic_bp~BLL+race+age+sex, data = new_df)
+
+#model3 from paper definition
+model3_systolic_paper<- lm(systolic_bp~BLL+race+age+education+income+BMI+alcohol+smoking+sex, data = new_df)
+
+```
+
+# Define a list of models
+
+```{r}
+model1_systolic<-lm(systolic_bp ~ BLL+race+sex,  data = new_df)
+model2_systolic<-lm(systolic_bp~ BLL*race+age+sex,  data = new_df)
+model3_systolic<-lm(systolic_bp ~ BLL+race+education+age+sex,  data = new_df)
+```
+# Perform Model Selection
+
+```{r}
+#Model selection tests
+anova(model1_systolic)
+AIC(model1_systolic)
+BIC(model1_systolic)
+
+
+anova(model2_systolic)
+AIC(model2_systolic)
+BIC(model2_systolic)
+
+
+anova(model3_systolic)
+AIC(model3_systolic)
+BIC(model3_systolic)
+
+
+#Create a contingency table
+contingency_table<- table(new_df$race, new_df$education)
+
+# Perform chi-square test
+chi_square_test<- chisq.test(contingency_table)
+
+# Print the results
+print(chi_square_test)
+
+
+# Perform t-test
+t_test_result_educ<- t.test(systolic_bp ~ hypertension_status, data = new_df)
+
+# Print the results
+print(t_test_result_educ)
+
+
+# Perform Pearson correlation coefficient test
+cor_test_result<- cor.test(new_df$systolic_bp, new_df$BLL, method = "pearson")
+
+# Print the results
+print(cor_test_result)
+```
+# Model 1
+#PAPER RESULTS
+## Dummy Coding (coefficients to replicate paper)
+
+```{r}
+# Create an empty list to store models
+models <- list()
+
+# Fit and store each model in the list
+models$model1_systolic_pap_dummy<- lm(systolic_bp ~ BLL, data = new_df)
+
+# Create an empty list to store model summaries
+model_summaries <- list()
+
+# Loop over sex and race levels
+for (x in unique(new_df$sex)){
+  for (z in unique(new_df$race)) {
+    # Subset the data for the current race and sex category
+    subset_data <- subset(new_df, race == z & sex==x)
+    
+    # Fit Model 1 on the subset data
+    model_result <- tidy(lm(systolic_bp ~ BLL, data = subset_data))
+    
+    # Extract coefficients
+    coef <- model_result$estimate[model_result$term == "BLL"]
+    
+    # Extract confidence intervals
+    conf_int <- confint(lm(systolic_bp ~ BLL, data = subset_data))["BLL", ]
+    
+    #Extract p-values
+    p_value <- coef(summary(lm(systolic_bp ~ BLL, data = subset_data)))["BLL", "Pr(>|t|)"]
+
+    
+    # Create a data frame with the results
+    summary <- data.frame(
+      model = "model1_systolic",
+      race = z,
+      sex=x,
+      coef = coef,
+      conf_int = conf_int,
+      p_value=p_value
+    )
+    model_summaries <- c(model_summaries, list(summary))
+  }
+}
+
+# Print the resulting data frame
+model_summaries_df <- do.call(rbind, model_summaries)
+# Now you have a data frame model_summaries_df with summaries stratified by sex and race for Model 1
+print(model_summaries_df)
+
+```
+
+```{r}
+
+# Create an empty list to store models
+models2<- list()
+
+# Fit and store each model in the list
+models2$model2_systolic_pap_dummy<- lm(systolic_bp ~ BLL+age, data = new_df)
+
+# Create an empty list to store model summaries
+model_summaries2<- list()
+
+# Loop over sex and race levels
+for (x in unique(new_df$sex)){
+  for (z in unique(new_df$race)) {
+    # Subset the data for the current race and sex category
+    subset_data2<- subset(new_df, race == z & sex==x)
+    
+    # Fit Model 1 on the subset data
+    model_result2<- tidy(lm(systolic_bp ~ BLL+age, data = subset_data2))
+    
+    # Extract coefficients
+    coef <- model_result2$estimate[model_result2$term == "BLL"]
+    
+    # Extract confidence intervals
+    conf_int <- confint(lm(systolic_bp ~ BLL+age, data = subset_data2))["BLL", ]
+    
+    # Create a data frame with the results
+    summary2<- data.frame(
+      model = "model2_systolic",
+      race = z,
+      sex=x,
+      coef = coef,
+      conf_int = conf_int
+    )
+    model_summaries2<- c(model_summaries2, list(summary2))
+  }
+}
+
+# Print the resulting data frame
+model_summaries_df2<- do.call(rbind, model_summaries2)
+# Now you have a data frame model_summaries_df with summaries stratified by sex and race for Model 1
+print(model_summaries_df2)
+
+```
+
+```{r}
+
+# Create an empty list to store models
+models3<- list()
+
+# Fit and store each model in the list
+models3$model3_systolic_pap_dummy<- lm(systolic_bp ~ BLL+age+education +income +BMI +alcohol +smoking, data= new_df)
+
+# Create an empty list to store model summaries
+model_summaries3<-list()
+
+# Loop over sex and race levels
+for (x in unique(new_df$sex)){
+  for (z in unique(new_df$race)) {
+    # Subset the data for the current race and sex category
+    subset_data3<- subset(new_df, race == z & sex==x)
+    
+    # Fit Model 1 on the subset data
+    model_result3<- tidy(lm(systolic_bp ~ BLL+age+education+income +BMI +alcohol +smoking, data = subset_data3))
+    
+    # Extract coefficients
+    coef<- model_result3$estimate[model_result3$term == "BLL"]
+    
+    # Extract confidence intervals
+    conf_int<- confint(lm(systolic_bp ~ BLL+age+education+income +BMI +alcohol+smoking, data = subset_data3))["BLL", ]
+    
+    # Create a data frame with the results
+    summary3<- data.frame(
+      model = "model3_systolic",
+      sex=x,
+      race = z,
+      coef = coef,
+      conf_int = conf_int
+    )
+    model_summaries3<- c(model_summaries3, list(summary3))
+  }
+}
+
+# Print the resulting data frame
+model_summaries_df3<- do.call(rbind, model_summaries3)
+# Now you have a data frame model_summaries_df with summaries stratified by sex and race for Model 1
+print(model_summaries_df3)
+
+```
+# Model 1
+```{r}
+model1_systolic<-lm(systolic_bp ~ BLL+race+sex,  data = new_df)
+summary(model1_systolic)
+#Calculate confidence intervals for coefficients
+conf_intervals_model1<- confint(model1_systolic)
+# Create a summary dataframe with coefficients and confidence intervals
+summary_dfmodel1<- cbind(coefficients = coef(model1_systolic), conf_intervals_model1)
+# Print the summary dataframe
+print(summary_dfmodel1)
+```
+
+## Simple Coding
+```{r}
+# Function to create simple regression coding matrix
+create_regression_coding <- function(k) {
+  # Initialize coding matrix
+  coding_matrix <- matrix(0, nrow = k, ncol = k - 1)
+  
+  # Fill coding matrix with appropriate values
+  for (i in 1:k) {
+    if (i == 1) {
+      coding_matrix[i, ] <- -1 / k
+    } else {
+      coding_matrix[i, i - 1] <- (k - 1) / k
+    }
+  }
+  
+  # Replace 0s with -1/k
+  coding_matrix[coding_matrix == 0] <- -1 / k
+  
+  return(coding_matrix)
+}
+
+# Define the number of levels (k)
+k <- 5
+
+# Create regression coding matrix
+regression_coding<-create_regression_coding(k)
+
+
+# Print the regression coding matrix
+print(regression_coding)
+
+
+# Apply regression coding to the race variable in your dataframe
+contrasts(new_df$race)<-regression_coding
+
+# Print the summary of the model
+summary(model1_systolic)
+conf_intervals_dummy<- confint(model1_systolic)
+# Create a summary dataframe with coefficients and confidence intervals
+summary_dummy_model1<- cbind(coefficients = coef(model1_systolic), conf_intervals_dummy)
+# Print the summary dataframe
+print(summary_dummy_model1)
+
+
+```
+#Forward coding
+
+```{r}
+# Given matrix
+forward_matrix<- matrix(c(0.8, 0.6, 0.4, 0.2,
+                            -0.2, 0.6, 0.4, 0.2,
+                            -0.2, -0.4, 0.4, 0.2,
+                            -0.2, -0.4, -0.6, 0.2,
+                            -0.2, -0.4, -0.6, -0.8), nrow = 5, ncol = 4, byrow = TRUE)
+
+
+contrasts(new_df$race)<-forward_matrix
+# Fit the model with the specified contrast coding
+model1_systolic<-lm(systolic_bp ~ BLL+race+sex,  data = new_df)
+
+# Print the model summary
+summary_fwd_model1<-summary(model1_systolic)
+# Adding 95% Confidence Intervals
+conf_int_fwd_model1<- confint(model1_systolic)
+
+# Combine the summary statistics and confidence intervals
+summary_int_fwd_model1<- cbind(summary_fwd_model1$coefficients, conf_int_fwd_model1)
+
+# Print the combined summary with confidence intervals
+print(summary_int_fwd_model1)
+```
+#Backward Coding
+```{r}
+# Given matrix
+backward_matrix <- matrix(c(-0.8, -0.6, -0.4, -0.2,
+                            0.2, -0.6, -0.4, -0.2,
+                            0.2, 0.4, -0.4, -0.2,
+                            0.2, 0.4, 0.6, -0.2,
+                            0.2, 0.4, 0.6, 0.8), nrow = 5, ncol = 4, byrow = TRUE)
+
+
+contrasts(new_df$race)<-backward_matrix
+# Fit the model with the specified contrast coding
+model1_systolic<-lm(systolic_bp ~ BLL+race+sex,  data = new_df)
+
+# Print the model summary
+summary_bckwd_model1<-summary(model1_systolic)
+# Adding 95% Confidence Intervals
+conf_int_bckwd_model1<- confint(model1_systolic)
+
+# Combine the summary statistics and confidence intervals
+summary_int_bckwd_model1<- cbind(summary_bckwd_model1$coefficients, conf_int_bckwd_model1)
+
+# Print the combined summary with confidence intervals
+print(summary_int_bckwd_model1)
+```
+#Deviation Coding
+```{r}
+# Function to create a deviation coding matrix
+create_deviation_coding <- function(k) {
+  # Define the deviation coding matrix
+  deviation_matrix <- matrix(0, nrow = k, ncol = k - 1)
+  
+  # Fill the matrix with appropriate values
+  for (i in 1:k) {
+    if (i == 1) {
+      deviation_matrix[i, ] <- rep(-1, k - 1)
+    } else {
+      deviation_matrix[i, i - 1] <- 1
+    }
+  }
+  
+  return(deviation_matrix)
+}
+
+# Define the number of categories (k)
+k <- 5  # Change this value as needed
+
+# Create the deviation coding matrix
+deviation_matrix <- create_deviation_coding(k)
+
+# Assign row names
+row.names(deviation_matrix) <- c("1", "2", "3", "4", "5")
+
+# Add zeros for the additional column(s) in the matrix
+deviation_matrix <- cbind(deviation_matrix, matrix(0, nrow = k, ncol = k - nrow(deviation_matrix)))
+
+# Apply deviation coding to the race variable
+contrasts(new_df$race)<- deviation_matrix
+
+model1_systolic<-lm(systolic_bp ~ BLL+race+sex,  data = new_df)
+
+# Print the model summary
+summary_dev_model1<-summary(model1_systolic)
+# Adding 95% Confidence Intervals
+conf_int_dev_model1<- confint(model1_systolic)
+
+# Combine the summary statistics and confidence intervals
+summary_int_dev_model1<- cbind(summary_dev_model1$coefficients, conf_int_dev_model1)
+
+# Print the combined summary with confidence intervals
+print(summary_int_dev_model1)
+```
+
+# Model 2
+
+```{r}
+model2_systolic<-lm(systolic_bp~ BLL*race+age+sex,  data = new_df)
+summary(model2_systolic)
+conf_intervals_model2<- confint(model2_systolic)
+# Create a summary dataframe with coefficients and confidence intervals
+summary_df_model2<- cbind(coefficients = coef(model2_systolic), conf_intervals_model2)
+# Print the summary dataframe
+print(summary_df_model2)
+```
+## Simple Coding
+```{r}
+# Function to create simple regression coding matrix
+create_regression_coding <- function(k) {
+  # Initialize coding matrix
+  coding_matrix <- matrix(0, nrow = k, ncol = k - 1)
+  
+  # Fill coding matrix with appropriate values
+  for (i in 1:k) {
+    if (i == 1) {
+      coding_matrix[i, ] <- -1 / k
+    } else {
+      coding_matrix[i, i - 1] <- (k - 1) / k
+    }
+  }
+  
+  # Replace 0s with -1/k
+  coding_matrix[coding_matrix == 0] <- -1 / k
+  
+  return(coding_matrix)
+}
+
+# Define the number of levels (k)
+k <- 5
+
+# Create regression coding matrix
+regression_coding <- create_regression_coding(k)
+
+
+# Print the regression coding matrix
+print(regression_coding)
+
+# Assuming you already have the regression coding matrix stored in 'regression_coding'
+
+# Apply regression coding to the race variable in your dataframe
+contrasts(new_df$race)<- regression_coding
+
+# Print the summary of the model
+summary(model2_systolic)
+conf_intervals_dummy_model2<- confint(model2_systolic)
+# Create a summary dataframe with coefficients and confidence intervals
+summary_dummy_model2<- cbind(coefficients = coef(model2_systolic), conf_intervals_dummy_model2)
+# Print the summary dataframe
+print(summary_dummy_model2)
+
+
+```
+#Forward coding
+
+```{r}
+# Given matrix
+forward_matrix<- matrix(c(0.8, 0.6, 0.4, 0.2,
+                            -0.2, 0.6, 0.4, 0.2,
+                            -0.2, -0.4, 0.4, 0.2,
+                            -0.2, -0.4, -0.6, 0.2,
+                            -0.2, -0.4, -0.6, -0.8), nrow = 5, ncol = 4, byrow = TRUE)
+
+
+contrasts(new_df$race)<-forward_matrix
+# Fit the model with the specified contrast coding
+model2_systolic<-lm(systolic_bp~ BLL*race+age+sex,  data = new_df)
+
+# Print the model summary
+summary_fwd_model2<-summary(model2_systolic)
+# Adding 95% Confidence Intervals
+conf_int_fwd_model2<- confint(model2_systolic)
+
+# Combine the summary statistics and confidence intervals
+summary_int_fwd_model2<- cbind(summary_fwd_model2$coefficients, conf_int_fwd_model2)
+
+# Print the combined summary with confidence intervals
+print(summary_int_fwd_model2)
+```
+#Backward Coding
+```{r}
+# Given matrix
+backward_matrix <- matrix(c(-0.8, -0.6, -0.4, -0.2,
+                            0.2, -0.6, -0.4, -0.2,
+                            0.2, 0.4, -0.4, -0.2,
+                            0.2, 0.4, 0.6, -0.2,
+                            0.2, 0.4, 0.6, 0.8), nrow = 5, ncol = 4, byrow = TRUE)
+
+
+contrasts(new_df$race)<-backward_matrix
+# Fit the model with the specified contrast coding
+model2_systolic<-lm(systolic_bp~ BLL*race+age+sex,  data = new_df)
+
+# Print the model summary
+summary_bckwd_model2<-summary(model2_systolic)
+# Adding 95% Confidence Intervals
+conf_int_bckwd_model2<- confint(model2_systolic)
+
+# Combine the summary statistics and confidence intervals
+summary_int_bckwd_model2<- cbind(summary_bckwd_model2$coefficients, conf_int_bckwd_model2)
+
+# Print the combined summary with confidence intervals
+print(summary_int_bckwd_model2)
+```
+#Deviation Coding
+```{r}
+# Function to create a deviation coding matrix
+create_deviation_coding <- function(k) {
+  # Define the deviation coding matrix
+  deviation_matrix <- matrix(0, nrow = k, ncol = k - 1)
+  
+  # Fill the matrix with appropriate values
+  for (i in 1:k) {
+    if (i == 1) {
+      deviation_matrix[i, ] <- rep(-1, k - 1)
+    } else {
+      deviation_matrix[i, i - 1] <- 1
+    }
+  }
+  
+  return(deviation_matrix)
+}
+
+# Define the number of categories (k)
+k <- 5  # Change this value as needed
+
+# Create the deviation coding matrix
+deviation_matrix <- create_deviation_coding(k)
+
+# Assign row names
+row.names(deviation_matrix) <- c("1", "2", "3", "4", "5")
+
+# Add zeros for the additional column(s) in the matrix
+deviation_matrix <- cbind(deviation_matrix, matrix(0, nrow = k, ncol = k - nrow(deviation_matrix)))
+
+# Apply deviation coding to the race variable
+contrasts(new_df$race)<- deviation_matrix
+
+model2_systolic<-lm(systolic_bp~ BLL*race+age+sex,  data = new_df)
+
+# Print the model summary
+summary_dev_model2<-summary(model2_systolic)
+# Adding 95% Confidence Intervals
+conf_int_dev_model2<- confint(model2_systolic)
+
+# Combine the summary statistics and confidence intervals
+summary_int_dev_model2<- cbind(summary_dev_model2$coefficients, conf_int_dev_model2)
+
+# Print the combined summary with confidence intervals
+print(summary_int_dev_model2)
+```
+
+# Model 3
+```{r}
+model3_systolic<-lm(systolic_bp ~ BLL+race+education+age+sex,  data = new_df)
+summary(lm(systolic_bp~ BLL+race+education+age+sex, data=new_df))
+conf_intervals_model3<- confint(model3_systolic)
+# Create a summary dataframe with coefficients and confidence intervals
+summary_dfmodel3<- cbind(coefficients = coef(model3_systolic), conf_intervals_model3)
+# Print the summary dataframe
+print(summary_dfmodel3)
+```
+
+## Simple Coding
+```{r}
+# Function to create simple regression coding matrix
+create_regression_coding <- function(k) {
+  # Initialize coding matrix
+  coding_matrix <- matrix(0, nrow = k, ncol = k - 1)
+  
+  # Fill coding matrix with appropriate values
+  for (i in 1:k) {
+    if (i == 1) {
+      coding_matrix[i, ] <- -1 / k
+    } else {
+      coding_matrix[i, i - 1] <- (k - 1) / k
+    }
+  }
+  
+  # Replace 0s with -1/k
+  coding_matrix[coding_matrix == 0] <- -1 / k
+  
+  return(coding_matrix)
+}
+
+# Define the number of levels (k)
+k <- 5
+
+# Create regression coding matrix
+regression_coding <- create_regression_coding(k)
+
+
+# Print the regression coding matrix
+print(regression_coding)
+
+# Assuming you already have the regression coding matrix stored in 'regression_coding'
+
+# Apply regression coding to the race variable in your dataframe
+contrasts(new_df$race)<- regression_coding
+
+# Print the summary of the model
+summary(model3_systolic)
+conf_intervals_dummy_model3<- confint(model3_systolic)
+# Create a summary dataframe with coefficients and confidence intervals
+summary_dummy_model3<- cbind(coefficients = coef(model3_systolic), conf_intervals_dummy_model3)
+# Print the summary dataframe
+print(summary_dummy_model3)
+
+
+```
+#Forward coding
+
+```{r}
+# Given matrix
+forward_matrix<- matrix(c(0.8, 0.6, 0.4, 0.2,
+                            -0.2, 0.6, 0.4, 0.2,
+                            -0.2, -0.4, 0.4, 0.2,
+                            -0.2, -0.4, -0.6, 0.2,
+                            -0.2, -0.4, -0.6, -0.8), nrow = 5, ncol = 4, byrow = TRUE)
+
+
+contrasts(new_df$race)<-forward_matrix
+# Fit the model with the specified contrast coding
+model3_systolic<-lm(systolic_bp ~ BLL+race+education+age+sex,  data = new_df)
+
+# Print the model summary
+summary_fwd_model3<-summary(model3_systolic)
+# Adding 95% Confidence Intervals
+conf_int_fwd_model3<- confint(model3_systolic)
+
+# Combine the summary statistics and confidence intervals
+summary_int_fwd_model3<- cbind(summary_fwd_model3$coefficients, conf_int_fwd_model3)
+
+# Print the combined summary with confidence intervals
+print(summary_int_fwd_model3)
+```
+#Backward Coding
+```{r}
+# Given matrix
+backward_matrix <- matrix(c(-0.8, -0.6, -0.4, -0.2,
+                            0.2, -0.6, -0.4, -0.2,
+                            0.2, 0.4, -0.4, -0.2,
+                            0.2, 0.4, 0.6, -0.2,
+                            0.2, 0.4, 0.6, 0.8), nrow = 5, ncol = 4, byrow = TRUE)
+
+
+contrasts(new_df$race)<-backward_matrix
+# Fit the model with the specified contrast coding
+model3_systolic<-lm(systolic_bp ~ BLL+race+education+age+sex,  data = new_df)
+
+# Print the model summary
+summary_bckwd_model3_<-summary(model3_systolic)
+# Adding 95% Confidence Intervals
+conf_int_bckwd_model3_ <- confint(model3_systolic)
+
+# Combine the summary statistics and confidence intervals
+summary_int_bckwd_model3_<- cbind(summary_bckwd_model3_$coefficients, conf_int_bckwd_model3_)
+
+# Print the combined summary with confidence intervals
+print(summary_int_bckwd_model3_)
+```
+#Deviation Coding
+```{r}
+# Function to create a deviation coding matrix
+create_deviation_coding <- function(k) {
+  # Define the deviation coding matrix
+  deviation_matrix <- matrix(0, nrow = k, ncol = k - 1)
+  
+  # Fill the matrix with appropriate values
+  for (i in 1:k) {
+    if (i == 1) {
+      deviation_matrix[i, ] <- rep(-1, k - 1)
+    } else {
+      deviation_matrix[i, i - 1] <- 1
+    }
+  }
+  
+  return(deviation_matrix)
+}
+
+# Define the number of categories (k)
+k <- 5  # Change this value as needed
+
+# Create the deviation coding matrix
+deviation_matrix <- create_deviation_coding(k)
+
+# Assign row names
+row.names(deviation_matrix) <- c("1", "2", "3", "4", "5")
+
+# Add zeros for the additional column(s) in the matrix
+deviation_matrix <- cbind(deviation_matrix, matrix(0, nrow = k, ncol = k - nrow(deviation_matrix)))
+
+# Apply deviation coding to the race variable
+contrasts(new_df$race)<- deviation_matrix
+
+model3_systolic<-lm(systolic_bp ~ BLL+race+education+age+sex,  data = new_df)
+
+# Print the model summary
+summary_dev_model3<-summary(model3_systolic)
+# Adding 95% Confidence Intervals
+conf_int_dev_model3<- confint(model3_systolic)
+
+# Combine the summary statistics and confidence intervals
+summary_int_dev_model3<- cbind(summary_dev_model3$coefficients, conf_int_dev_model3)
+
+# Print the combined summary with confidence intervals
+print(summary_int_dev_model3)
+```
